@@ -262,6 +262,25 @@ body{
 .term-line{white-space:pre-wrap;margin-bottom:2px;}
 .term-cmd{color:var(--cyan);}
 .term-out{color:var(--text-dim);}
+.term-appear{animation:lineIn .3s ease both;}
+@keyframes lineIn{
+  from{opacity:0; transform:translateY(4px);}
+  to{opacity:1; transform:translateY(0);}
+}
+.term-status{color:var(--text-faint);font-style:italic;}
+.term-status .dots span{opacity:0;animation:dotBlink 1.2s infinite;}
+.term-status .dots span:nth-child(2){animation-delay:.2s;}
+.term-status .dots span:nth-child(3){animation-delay:.4s;}
+@keyframes dotBlink{0%,80%,100%{opacity:0;}40%{opacity:1;}}
+.term-warn{
+  color:var(--danger);font-weight:600;
+  animation:lineIn .3s ease both, warnGlow 1.4s ease-in-out .3s 2;
+}
+@keyframes warnGlow{
+  0%,100%{text-shadow:0 0 0 rgba(255,61,129,0);}
+  50%{text-shadow:0 0 9px rgba(255,61,129,.65);}
+}
+.term-step-btn.running{opacity:.55;cursor:default;}
 .term-step-btn{
   margin:10px 0 4px;padding:8px 14px;border-radius:7px;border:1px solid var(--cyan);
   background:rgba(0,230,251,0.08);color:var(--cyan);font-family:var(--mono);font-size:12px;cursor:pointer;
@@ -335,14 +354,14 @@ body{
         <span class="rank-name" id="rankName">RECRUIT</span>
         <span class="rank-score" id="scoreLabel">0 pts</span>
       </div>
-      <div class="xp-track"><div class="xp-fill" id="xpFill" style="width:0%"></div><div class="xp-ticks"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
+      <div class="xp-track"><div class="xp-fill" id="xpFill" style="width:0%"></div><div class="xp-ticks" id="xpTicks"></div></div>
       <div class="xp-label" id="xpLabel">0 / 90 XP to ANALYST</div>
     </div>
   </header>
 
   <section class="hero">
     <h1>Trace the chain. Earn clearance at every link.</h1>
-    <p>Seven checkpoints stand between raw source code and a verified, deployable artifact. Clear each one, run the drill, and level up — the real Harness SCS docs are linked at every stop.</p>
+    <p>Nine checkpoints stand between raw source code and a verified, deployable artifact — including AI components and zero-day response. Clear each one, run the drill, and level up — the real Harness SCS docs are linked at every stop.</p>
     <a class="src-link" href="https://developer.harness.io/software-supply-chain-assurance" target="_blank" rel="noopener">↳ developer.harness.io/software-supply-chain-assurance</a>
   </section>
 
@@ -376,7 +395,9 @@ const ICONS = {
   shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l7 3v6c0 5-3 7.5-7 9-4-1.5-7-4-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
   layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>',
   key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l2 2M14 9l2 2"/></svg>',
-  link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 15l6-6"/><path d="M8 12L5 15a4 4 0 005.5 5.5L13 18"/><path d="M16 12l3-3a4 4 0 00-5.5-5.5L11 6"/></svg>'
+  link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 15l6-6"/><path d="M8 12L5 15a4 4 0 005.5 5.5L13 18"/><path d="M16 12l3-3a4 4 0 00-5.5-5.5L11 6"/></svg>',
+  cpu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="7" y="7" width="10" height="10" rx="1.5"/><circle cx="12" cy="12" r="2.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M6 6l1.8 1.8M16.2 16.2L18 18M18 6l-1.8 1.8M7.8 16.2L6 18"/></svg>',
+  agent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2v4"/><circle cx="12" cy="10" r="4"/><path d="M5 21c0-3.9 3.1-7 7-7s7 3.1 7 7"/><path d="M9.5 9.5l1 1 3-3"/></svg>'
 };
 
 const TOPICS = [
@@ -450,8 +471,10 @@ const TOPICS = [
     drill:{type:'terminal', label:'DRILL — RUN THE ORCHESTRATION STEP',
       steps:[
         { button:'Run SBOM Orchestration', cmd:'harness sbom generate --artifact myapp:1.4.2 --format cyclonedx-json',
-          out:'Scanning image layers...\nFound 214 packages, 38 direct dependencies\nWriting sbom.cyclonedx.json' },
+          status:'Scanning image layers',
+          out:'Scanning image layers...\nFound 214 packages, 38 direct dependencies\n\u26A0 OSS risk detected: log4j-core@2.14.1 (CVE-2021-44228) \u2014 flagged for review\nWriting sbom.cyclonedx.json' },
         { button:'Sign the SBOM', cmd:'cosign attest --predicate sbom.cyclonedx.json --type cyclonedx --key cosign.key myapp:1.4.2',
+          status:'Signing attestation',
           out:'Signing SBOM attestation...\nPushed attestation to registry as myapp:1.4.2.att\nSBOM is now verifiable downstream' }
       ]
     }
@@ -549,13 +572,68 @@ const TOPICS = [
     drill:{type:'terminal', label:'DRILL — TRACE ONE ARTIFACT',
       steps:[
         { button:'Check source', cmd:'scs trace myapp:1.4.2 --stage source',
+          status:'Tracing source',
           out:'Repo: github.com/acme/myapp\nCommit: 9f3ac21, signed\nContributors: 3, all verified identities' },
         { button:'Check build', cmd:'scs trace myapp:1.4.2 --stage build',
+          status:'Tracing build platform',
           out:'Build platform: Harness CI\nSLSA provenance: Level 2, signed' },
         { button:'Check SBOM & policy', cmd:'scs trace myapp:1.4.2 --stage sbom',
-          out:'SBOM: 214 components\nPolicy result: 0 deny-list violations, 2 allow-list exceptions reviewed' },
+          status:'Cross-checking SBOM against policy',
+          out:'SBOM: 214 components\n\u26A0 OSS risk detected: 2 allow-list exceptions pending review\nPolicy result: 0 deny-list violations' },
         { button:'Check deployment', cmd:'scs trace myapp:1.4.2 --stage deploy',
+          status:'Verifying deployed digest',
           out:'Deployed to: prod-us-east\nDigest matches signed image\nChain of custody: INTACT, zero gaps' }
+      ]
+    }
+  },
+  {
+    id:'aibom', icon:'cpu', xp:90,
+    title:'Cover Your AI',
+    tagline:'SBOM for models, datasets, agents',
+    docUrl:'https://developer.harness.io/software-supply-chain-assurance/use-scs/open-source-management/generate-aibom-for-repositories',
+    docTitle:'Generate and Manage AIBOM',
+    briefing:[
+      "A regular SBOM covers open-source packages and libraries \u2014 but it has no idea your service loads a fine-tuned model, queries a vector database, or calls out through an MCP integration. Those AI-specific components sit outside traditional dependency analysis entirely.",
+      "AIBOM closes that gap: it scans your source repositories for AI-related components \u2014 models, datasets, agents, vector databases, MCP integrations \u2014 and builds a structured inventory of them, the same way an SBOM does for ordinary dependencies. Repositories only, for now; container images aren\u2019t in scope yet."
+    ],
+    drill:{type:'choice', label:'DRILL — SBOM OR AIBOM?',
+      questions:[
+        { prompt:'A fine-tuned model checkpoint your service loads at startup.', options:[
+          {text:'SBOM', correct:false, feedback:'A traditional SBOM has no concept of a model checkpoint \u2014 this is exactly the blind spot AIBOM covers.'},
+          {text:'AIBOM', correct:true, feedback:'Right \u2014 models are one of the core component types AIBOM was built to inventory.'}
+        ]},
+        { prompt:'An open-source JSON parsing library your build depends on.', options:[
+          {text:'SBOM', correct:true, feedback:'Correct \u2014 an ordinary code dependency is standard SBOM territory.'},
+          {text:'AIBOM', correct:false, feedback:'Not quite \u2014 AIBOM is for AI-specific components; a parsing library is a regular dependency.'}
+        ]},
+        { prompt:'An MCP integration your agent calls to use external tools.', options:[
+          {text:'SBOM', correct:false, feedback:'MCP integrations sit outside what a traditional SBOM tracks.'},
+          {text:'AIBOM', correct:true, feedback:'Right \u2014 MCP integrations are explicitly one of the component types AIBOM discovers.'}
+        ]}
+      ]
+    }
+  },
+  {
+    id:'zeroday', icon:'agent', xp:110,
+    title:'Answer the Zero-Day',
+    tagline:'Detect, map, remediate \u2014 fast',
+    docUrl:'https://developer.harness.io/software-supply-chain-assurance/use-scs/agents/zero-day-agent',
+    docTitle:'Zero Day Agent',
+    briefing:[
+      "SCS already flags vulnerable open-source dependencies through continuous SBOM analysis \u2014 but turning that into a fix means someone finds every affected repo, picks a safe version, opens pull requests, and confirms each one landed. During an active zero-day, that manual chase is exactly what costs you time.",
+      "The moment Harness\u2019s Security Research Team confirms a new zero-day, the Zero Day Agent takes over: it automatically identifies every affected asset across your supply chain and triggers remediation itself. It's a purpose-built SCS agent for this one scenario, not a general worker agent you configure."
+    ],
+    drill:{type:'terminal', label:'DRILL — RESPOND TO A CONFIRMED ZERO-DAY',
+      steps:[
+        { button:'Watch for disclosure', cmd:'scs zero-day-agent status --watch',
+          status:'Monitoring vulnerability feeds',
+          out:'New disclosure confirmed: CVE-2026-41120 (critical, RCE)\nSource: Harness Security Research Team\n\u26A0 OSS risk detected: affected package matches artifacts across 6 repositories' },
+        { button:'Map the blast radius', cmd:'scs zero-day-agent scan --cve CVE-2026-41120',
+          status:'Mapping affected artifacts',
+          out:'Scanned 340 artifacts across 6 repositories\n14 artifacts affected, 3 already in production\nBlast radius mapped in 4.2s' },
+        { button:'Trigger remediation', cmd:'scs zero-day-agent remediate --cve CVE-2026-41120 --mode pr',
+          status:'Drafting validated fixes',
+          out:'Patched dependency version validated in 6 pipelines\nOpened 6 pull requests for human review\nMerge authority stays with your team' }
       ]
     }
   }
@@ -566,28 +644,59 @@ const LEVELS = [
   {name:'ANALYST', min:90},
   {name:'ENGINEER', min:250},
   {name:'GUARDIAN', min:420},
-  {name:'ARCHITECT', min:590}
+  {name:'ARCHITECT', min:590},
+  {name:'SENTINEL', min:750}
 ];
 
 /* ---------------------------------------------------------------------
    STATE
 --------------------------------------------------------------------- */
 const STORE_KEY = 'scs-quest-progress';
-let state = { xp:0, completed:{}, answered:{} };
 let selectedId = null;
 
-async function loadState(){
-  try{
-    const res = await window.storage.get(STORE_KEY, false);
-    if(res && res.value){
-      const parsed = JSON.parse(res.value);
-      state = Object.assign({xp:0, completed:{}, answered:{}}, parsed);
-    }
-  }catch(e){ /* no saved progress yet */ }
+function normalizeState(raw){
+  raw = raw || {};
+  return {
+    xp: typeof raw.xp === 'number' ? raw.xp : 0,
+    completed: raw.completed || {},
+    answered: raw.answered || {},
+    termProgress: raw.termProgress || {}
+  };
 }
+
+let state = normalizeState(null);
+
+function hasClaudeStorage(){
+  return typeof window !== 'undefined' && window.storage && typeof window.storage.get === 'function' && typeof window.storage.set === 'function';
+}
+
+async function loadState(){
+  // Prefer Claude's artifact storage (works in the Claude preview). Fall back to
+  // localStorage so the page still remembers progress once it's deployed on its own domain.
+  if(hasClaudeStorage()){
+    try{
+      const res = await window.storage.get(STORE_KEY, false);
+      if(res && res.value){
+        state = normalizeState(JSON.parse(res.value));
+        return;
+      }
+    }catch(e){ /* Claude storage unavailable this session — fall through */ }
+  }
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(raw) state = normalizeState(JSON.parse(raw));
+  }catch(e){ /* localStorage unavailable (private mode, disabled, etc.) — start fresh */ }
+}
+
 async function saveState(){
-  try{ await window.storage.set(STORE_KEY, JSON.stringify(state), false); }
-  catch(e){ console.error('save failed', e); }
+  if(hasClaudeStorage()){
+    try{
+      const res = await window.storage.set(STORE_KEY, JSON.stringify(state), false);
+      if(res) return;
+    }catch(e){ /* fall through to localStorage below */ }
+  }
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+  catch(e){ console.warn('Progress could not be saved this session (storage unavailable).'); }
 }
 
 function levelFor(xp){
@@ -628,6 +737,10 @@ function renderHUD(){
   } else {
     document.getElementById('xpFill').style.width = '100%';
     document.getElementById('xpLabel').textContent = state.xp + ' XP — max clearance reached';
+  }
+  const ticks = document.getElementById('xpTicks');
+  if(ticks && ticks.childElementCount !== TOPICS.length){
+    ticks.innerHTML = TOPICS.map(() => '<span></span>').join('');
   }
 }
 
@@ -691,7 +804,7 @@ function renderDetail(){
       el.innerHTML =
         '<div class="empty-icon">\u25C8</div>' +
         '<div class="empty-title">Chain fully verified</div>' +
-        '<div class="empty-sub">All seven checkpoints cleared \u2014 ' + state.xp + ' XP, ' + levelFor(state.xp).name + ' clearance.</div>';
+        '<div class="empty-sub">All ' + TOPICS.length + ' checkpoints cleared \u2014 ' + state.xp + ' XP, ' + levelFor(state.xp).name + ' clearance.</div>';
     } else {
       el.className = 'detail empty anim';
       el.innerHTML =
@@ -845,7 +958,10 @@ function renderTerminalDrill(t, area, mastered){
   for(let i=0; i<done; i++){
     const s = t.drill.steps[i];
     lines.push('<div class="term-line term-cmd">$ ' + s.cmd + '</div>');
-    lines.push('<div class="term-line term-out">' + s.out + '</div>');
+    s.out.split('\n').forEach(line => {
+      const isWarn = /^\u26A0/.test(line);
+      lines.push('<div class="term-line term-out' + (isWarn ? ' term-warn' : '') + '">' + line + '</div>');
+    });
   }
 
   const html = ['<div class="drill-label-row"><div class="drill-label">' + t.drill.label + '</div>' +
@@ -861,11 +977,7 @@ function renderTerminalDrill(t, area, mastered){
     const btn = document.createElement('button');
     btn.className = 'term-step-btn';
     btn.textContent = '\u25B8 ' + step.button;
-    btn.addEventListener('click', () => {
-      state.termProgress[t.id] = done + 1;
-      saveState();
-      renderDrill(t, mastered);
-    });
+    btn.addEventListener('click', () => runTerminalStep(t, done, termBody, mastered, btn));
     termBody.after(btn);
   }
 
@@ -873,6 +985,49 @@ function renderTerminalDrill(t, area, mastered){
   if(retryBtn) retryBtn.addEventListener('click', () => retryCheckpoint(t));
 
   appendMasterControl(t, mastered);
+}
+
+/* -- Animate a single terminal step: command, a brief "running" phase, then output revealed line by line -- */
+function runTerminalStep(t, done, termBody, mastered, btn){
+  const step = t.drill.steps[done];
+  btn.disabled = true;
+  btn.classList.add('running');
+  btn.textContent = '\u25B8 Running\u2026';
+
+  const cmdLine = document.createElement('div');
+  cmdLine.className = 'term-line term-cmd term-appear';
+  cmdLine.textContent = '$ ' + step.cmd;
+  termBody.appendChild(cmdLine);
+
+  const statusLine = document.createElement('div');
+  statusLine.className = 'term-line term-status term-appear';
+  statusLine.innerHTML = (step.status || 'Running') + '<span class="dots"><span>.</span><span>.</span><span>.</span></span>';
+  termBody.appendChild(statusLine);
+
+  setTimeout(() => {
+    statusLine.remove();
+    const outLines = step.out.split('\n');
+    outLines.forEach((line, i) => {
+      setTimeout(() => {
+        const div = document.createElement('div');
+        const isWarn = /^\u26A0/.test(line);
+        div.className = 'term-line term-out term-appear' + (isWarn ? ' term-warn' : '');
+        div.textContent = line;
+        termBody.appendChild(div);
+
+        if(i === outLines.length - 1){
+          // Only commit progress if this step wasn't reset (e.g. via Retry) while running.
+          if((state.termProgress[t.id] || 0) === done){
+            state.termProgress[t.id] = done + 1;
+            saveState();
+            if(document.body.contains(termBody) && selectedId === t.id){
+              renderDrill(t, mastered);
+            }
+          }
+        }
+      }, i * 280);
+    });
+  }, 650 + Math.random() * 350);
 }
 
 /* -- Retry a single checkpoint's drill without touching the rest of the run -- */
@@ -918,7 +1073,7 @@ function showToast(msg, isLevelUp){
    Reset
 --------------------------------------------------------------------- */
 document.getElementById('resetBtn').addEventListener('click', async () => {
-  state = { xp:0, completed:{}, answered:{}, termProgress:{} };
+  state = normalizeState(null);
   selectedId = null;
   await saveState();
   renderHUD(); renderRail(); renderDetail();
