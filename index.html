@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Supply Chain Run — Harness SCS</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --bg:#080B10;
+  --bg-grid:#0C1119;
+  --panel:#0F1622;
+  --panel-2:#131C2B;
+  --panel-3:#0A0F17;
+  --line:#20293A;
+  --line-soft:#161E2C;
+  --text:#E7ECF3;
+  --text-dim:#8492A6;
+  --text-faint:#4C5872;
+  --accent:#1FE0A8;
+  --accent-dim:#0E4A3C;
+  --amber:#FF8A4C;
+  --amber-dim:#4A2C18;
+  --gold:#FFC857;
+  --danger:#FF5C7A;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+  --sans:'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px;}
+body{
+  background:
+    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(31,224,168,0.07), transparent 60%),
+    radial-gradient(ellipse 700px 500px at 100% 0%, rgba(255,138,76,0.05), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.02) 0px, transparent 1px, transparent 34px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.02) 0px, transparent 1px, transparent 34px),
+    var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important;}
+}
+
+.app{max-width:980px;margin:0 auto;padding:22px 20px 64px;}
+
+/* ---------- HUD ---------- */
+.hud{
+  display:flex;justify-content:space-between;align-items:center;gap:16px;
+  padding:14px 18px;border:1px solid var(--line);border-radius:10px;
+  background:linear-gradient(180deg, var(--panel), var(--panel-3));
+  flex-wrap:wrap;
+}
+.hud-left{display:flex;align-items:center;gap:12px;}
+.chain-mark{
+  width:38px;height:38px;border-radius:8px;border:1px solid var(--accent);
+  display:flex;align-items:center;justify-content:center;color:var(--accent);
+  font-family:var(--mono);font-size:18px;flex-shrink:0;
+  background:rgba(31,224,168,0.06);
+}
+.hud-title{font-family:var(--mono);font-size:12.5px;letter-spacing:0.06em;color:var(--text);font-weight:600;}
+.hud-sub{font-size:12px;color:var(--text-dim);margin-top:2px;}
+.hud-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px;min-width:220px;}
+.rank-row{display:flex;align-items:baseline;gap:8px;}
+.rank-name{font-family:var(--mono);font-size:13px;color:var(--gold);letter-spacing:0.04em;}
+.rank-score{font-family:var(--mono);font-size:12px;color:var(--text-dim);}
+.xp-track{width:220px;height:6px;border-radius:4px;background:var(--line-soft);overflow:hidden;position:relative;}
+.xp-fill{height:100%;background:linear-gradient(90deg, var(--accent), var(--gold));border-radius:4px;transition:width .6s cubic-bezier(.4,0,.2,1);}
+.xp-ticks{position:absolute;top:0;left:0;right:0;height:100%;display:flex;justify-content:space-between;pointer-events:none;}
+.xp-ticks span{width:1px;height:100%;background:var(--bg);opacity:.5;}
+.xp-label{font-family:var(--mono);font-size:11px;color:var(--text-faint);}
+
+/* ---------- Hero ---------- */
+.hero{padding:34px 4px 26px;}
+.hero h1{
+  font-size:clamp(26px,4vw,38px);line-height:1.15;margin:0 0 12px;
+  max-width:640px;font-weight:600;letter-spacing:-0.01em;
+}
+.hero p{max-width:560px;color:var(--text-dim);font-size:15px;margin:0;}
+.hero .src-link{
+  display:inline-block;margin-top:14px;font-family:var(--mono);font-size:12px;
+  color:var(--accent);text-decoration:none;border-bottom:1px solid var(--accent-dim);
+}
+.hero .src-link:hover{border-bottom-color:var(--accent);}
+
+/* ---------- Chain rail ---------- */
+.chain-rail{
+  position:relative;display:flex;align-items:flex-start;gap:0;
+  padding:30px 6px 40px;overflow-x:auto;
+}
+.rail-wrap{position:relative;}
+.rail-wrap::before,.rail-wrap::after{
+  content:'';position:absolute;top:0;bottom:0;width:28px;z-index:2;pointer-events:none;
+}
+.rail-wrap::before{left:0;background:linear-gradient(90deg, var(--bg), transparent);}
+.rail-wrap::after{right:0;background:linear-gradient(270deg, var(--bg), transparent);}
+.rail-line{
+  position:absolute;top:57px;left:36px;right:36px;height:2px;
+  background:repeating-linear-gradient(90deg, var(--line) 0 8px, transparent 8px 14px);
+  z-index:0;overflow:hidden;
+}
+.rail-line::after{
+  content:'';position:absolute;top:-3px;left:0;width:10px;height:8px;border-radius:50%;
+  background:var(--accent);box-shadow:0 0 12px 3px rgba(31,224,168,0.7);
+  animation:travel 1.8s cubic-bezier(.65,0,.35,1) 0.3s 1 both;
+}
+@keyframes travel{
+  0%{left:0; opacity:0;}
+  8%{opacity:1;}
+  92%{opacity:1;}
+  100%{left:calc(100% - 10px); opacity:0;}
+}
+.node{
+  position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;
+  width:118px;flex-shrink:0;cursor:pointer;background:none;border:none;color:inherit;
+  padding:0;font-family:var(--sans);
+}
+.node-badge{
+  width:56px;height:56px;border:1.5px solid var(--line);border-radius:14px;
+  display:flex;align-items:center;justify-content:center;background:var(--panel);
+  transform:rotate(45deg);transition:border-color .2s, background .2s, transform .2s;
+}
+.node-badge svg{transform:rotate(-45deg);width:24px;height:24px;}
+.node.locked .node-badge{opacity:.45;}
+.node.available .node-badge{border-color:var(--amber);box-shadow:0 0 0 4px rgba(255,138,76,0.08);animation:pulse-ring 2.4s ease-in-out infinite;}
+@keyframes pulse-ring{
+  0%,100%{box-shadow:0 0 0 4px rgba(255,138,76,0.08);}
+  50%{box-shadow:0 0 0 7px rgba(255,138,76,0.16);}
+}
+.node.mastered .node-badge{border-color:var(--accent);background:rgba(31,224,168,0.08);box-shadow:0 0 0 4px rgba(31,224,168,0.08);}
+.node.selected .node-badge{transform:rotate(45deg) scale(1.06);}
+.node:hover:not(.locked) .node-badge{transform:rotate(45deg) scale(1.06);}
+.node-index{font-family:var(--mono);font-size:10px;color:var(--text-faint);margin-top:10px;}
+.node-title{font-size:12px;text-align:center;margin-top:3px;color:var(--text-dim);max-width:100px;}
+.node.mastered .node-title{color:var(--text);}
+.node.available .node-title{color:var(--text);}
+.node-xp{font-family:var(--mono);font-size:10px;color:var(--gold);margin-top:3px;}
+.node-doc{
+  margin-top:4px;font-family:var(--mono);font-size:10px;color:var(--text-faint);
+  text-decoration:none;display:inline-flex;align-items:center;gap:3px;
+}
+.node-doc:hover{color:var(--accent);}
+
+/* ---------- Detail panel ---------- */
+.detail{
+  margin-top:8px;border:1px solid var(--line);border-radius:12px;background:var(--panel);
+  overflow:hidden;
+}
+.detail.anim{animation:fadeSlide .35s ease both;}
+@keyframes fadeSlide{
+  from{opacity:0; transform:translateY(6px);}
+  to{opacity:1; transform:translateY(0);}
+}
+.detail.empty{
+  padding:48px 24px;text-align:center;color:var(--text-faint);
+}
+.empty-icon{font-size:22px;color:var(--line);margin-bottom:10px;}
+.empty-title{font-family:var(--mono);font-size:12.5px;color:var(--text-faint);letter-spacing:.03em;}
+.empty-sub{font-size:12.5px;color:var(--text-dim);margin-top:8px;}
+.detail-head{padding:22px 26px 16px;border-bottom:1px solid var(--line-soft);}
+.detail-eyebrow{font-family:var(--mono);font-size:11px;color:var(--text-faint);}
+.detail-title{font-size:21px;font-weight:600;margin:4px 0 10px;}
+.detail-brief p{color:var(--text-dim);font-size:14.5px;margin:0 0 10px;max-width:640px;}
+.doc-link{
+  display:inline-flex;align-items:center;gap:8px;margin-top:10px;font-family:var(--mono);
+  font-size:12.5px;color:var(--accent);text-decoration:none;padding:8px 14px;
+  border:1px solid var(--accent-dim);border-radius:7px;background:rgba(31,224,168,0.06);
+  transition:background .15s, border-color .15s;
+}
+.doc-link:hover{background:rgba(31,224,168,0.14);border-color:var(--accent);}
+.doc-link .arrow{transition:transform .15s;}
+.doc-link:hover .arrow{transform:translate(2px,-2px);}
+.detail-body{padding:20px 26px 26px;}
+.drill-label{font-family:var(--mono);font-size:11px;color:var(--amber);letter-spacing:0.05em;margin-bottom:12px;}
+
+/* choice exercise */
+.q-card{border:1px solid var(--line-soft);border-radius:10px;padding:16px 18px;margin-bottom:12px;background:var(--panel-2);}
+.q-prompt{font-size:14.5px;margin-bottom:12px;}
+.q-meta{font-family:var(--mono);font-size:11px;color:var(--text-faint);margin-bottom:6px;}
+.q-options{display:flex;flex-wrap:wrap;gap:8px;}
+.opt-btn{
+  padding:8px 14px;border-radius:7px;border:1px solid var(--line);background:var(--panel-3);
+  color:var(--text);font-size:13px;cursor:pointer;font-family:var(--sans);
+}
+.opt-btn:hover{border-color:var(--text-dim);}
+.opt-btn.correct{border-color:var(--accent);background:rgba(31,224,168,0.1);color:var(--accent);}
+.opt-btn.wrong{border-color:var(--danger);background:rgba(255,92,122,0.1);color:var(--danger);}
+.opt-btn:disabled{cursor:default;}
+.q-feedback{font-size:13px;color:var(--text-dim);margin-top:10px;padding-top:10px;border-top:1px dashed var(--line-soft);}
+.q-feedback.good{color:var(--accent);}
+.q-feedback.bad{color:var(--danger);}
+
+/* terminal exercise */
+.term{background:var(--panel-3);border:1px solid var(--line);border-radius:10px;font-family:var(--mono);font-size:12.5px;overflow:hidden;}
+.term-bar{padding:8px 12px;border-bottom:1px solid var(--line-soft);color:var(--text-faint);font-size:11px;display:flex;gap:6px;align-items:center;}
+.term-dot{width:8px;height:8px;border-radius:50%;background:var(--line);}
+.term-body{padding:14px 16px;min-height:40px;}
+.term-line{white-space:pre-wrap;margin-bottom:2px;}
+.term-cmd{color:var(--gold);}
+.term-out{color:var(--text-dim);}
+.term-step-btn{
+  margin:10px 0 4px;padding:8px 14px;border-radius:7px;border:1px solid var(--amber);
+  background:rgba(255,138,76,0.08);color:var(--amber);font-family:var(--mono);font-size:12px;cursor:pointer;
+}
+.term-step-btn:hover{background:rgba(255,138,76,0.16);}
+.term-step-btn:disabled{opacity:.35;cursor:default;}
+
+.master-btn{
+  margin-top:16px;padding:11px 20px;border-radius:8px;border:1px solid var(--accent);
+  background:rgba(31,224,168,0.1);color:var(--accent);font-family:var(--mono);font-size:13px;
+  cursor:pointer;letter-spacing:.02em;
+}
+.master-btn:hover{background:rgba(31,224,168,0.2);}
+.master-btn:disabled{opacity:.3;cursor:default;}
+.mastered-tag{
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;
+  margin-top:16px;padding-top:14px;border-top:1px dashed var(--line-soft);
+}
+.mastered-tag .check{font-family:var(--mono);font-size:12.5px;color:var(--accent);}
+.next-btn{
+  padding:9px 16px;border-radius:7px;border:1px solid var(--gold);background:rgba(255,200,87,0.08);
+  color:var(--gold);font-family:var(--mono);font-size:12.5px;cursor:pointer;
+}
+.next-btn:hover{background:rgba(255,200,87,0.18);}
+
+/* footer / toast */
+.foot{display:flex;justify-content:space-between;align-items:center;margin-top:28px;padding-top:14px;border-top:1px solid var(--line-soft);}
+.foot-note{font-family:var(--mono);font-size:11px;color:var(--text-faint);}
+.reset-btn{background:none;border:1px solid var(--line);color:var(--text-faint);font-family:var(--mono);font-size:11px;padding:6px 10px;border-radius:6px;cursor:pointer;}
+.reset-btn:hover{color:var(--danger);border-color:var(--danger);}
+
+.toast{
+  position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--panel-2);border:1px solid var(--accent);color:var(--accent);
+  font-family:var(--mono);font-size:13px;padding:10px 18px;border-radius:8px;
+  opacity:0;transition:opacity .25s, transform .25s;pointer-events:none;z-index:50;
+  display:flex;align-items:center;gap:8px;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.toast.level-up{border-color:var(--gold);color:var(--gold);box-shadow:0 0 20px rgba(255,200,87,0.25);}
+
+@media (max-width:640px){
+  .chain-rail{overflow-x:auto;padding:26px 4px 34px;}
+  .rail-wrap::before,.rail-wrap::after{width:18px;}
+  .node{width:92px;}
+  .node-title{font-size:11px;}
+  .hud{flex-direction:column;align-items:stretch;}
+  .hud-right{align-items:stretch;}
+  .xp-track{width:100%;}
+  .q-options{flex-direction:column;}
+  .opt-btn{width:100%;text-align:left;}
+  .mastered-tag{flex-direction:column;align-items:stretch;}
+  .next-btn{width:100%;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="hud">
+    <div class="hud-left">
+      <div class="chain-mark">◈</div>
+      <div>
+        <div class="hud-title">SUPPLY CHAIN RUN</div>
+        <div class="hud-sub">Harness SCS docs, as a mission</div>
+      </div>
+    </div>
+    <div class="hud-right">
+      <div class="rank-row">
+        <span class="rank-name" id="rankName">RECRUIT</span>
+        <span class="rank-score" id="scoreLabel">0 pts</span>
+      </div>
+      <div class="xp-track"><div class="xp-fill" id="xpFill" style="width:0%"></div><div class="xp-ticks"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
+      <div class="xp-label" id="xpLabel">0 / 90 XP to ANALYST</div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <h1>Trace the chain. Earn clearance at every link.</h1>
+    <p>Seven checkpoints stand between raw source code and a verified, deployable artifact. Clear each one, run the drill, and level up — the real Harness SCS docs are linked at every stop.</p>
+    <a class="src-link" href="https://developer.harness.io/software-supply-chain-assurance" target="_blank" rel="noopener">↳ developer.harness.io/software-supply-chain-assurance</a>
+  </section>
+
+  <div class="rail-wrap">
+    <section class="chain-rail" id="chainRail">
+      <div class="rail-line"></div>
+    </section>
+  </div>
+
+  <section class="detail empty" id="detail">SELECT A CHECKPOINT ABOVE TO BEGIN</section>
+
+  <div class="foot">
+    <div class="foot-note">Progress saves to your account automatically.</div>
+    <button class="reset-btn" id="resetBtn">Reset run</button>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------------------------------------------------------------------
+   DATA — topics, briefings, drills. Content paraphrased from the
+   Harness Supply Chain Security (SCS) docs at
+   https://developer.harness.io/software-supply-chain-assurance
+--------------------------------------------------------------------- */
+
+const ICONS = {
+  chain: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="9" width="8" height="8" rx="3"/><rect x="13" y="7" width="8" height="8" rx="3"/><path d="M9 13h6"/></svg>',
+  book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5c2-1 5-1 7 0v14c-2-1-5-1-7 0z"/><path d="M20 5c-2-1-5-1-7 0v14c2-1 5-1 7 0z"/></svg>',
+  box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>',
+  shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l7 3v6c0 5-3 7.5-7 9-4-1.5-7-4-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
+  layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>',
+  key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l2 2M14 9l2 2"/></svg>',
+  link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 15l6-6"/><path d="M8 12L5 15a4 4 0 005.5 5.5L13 18"/><path d="M16 12l3-3a4 4 0 00-5.5-5.5L11 6"/></svg>'
+};
+
+const TOPICS = [
+  {
+    id:'source', icon:'chain', xp:60,
+    title:'Map the Chain',
+    tagline:'What actually counts as your supply chain',
+    docUrl:'https://developer.harness.io/docs/software-supply-chain-assurance/get-started/overview/',
+    docTitle:'SCS Overview',
+    briefing:[
+      "A software supply chain is everything that touches your code between the first commit and the running artifact: source repos, CI runners, build tools, open-source packages, registries, and deploy pipelines.",
+      "Harness SCS watches this whole path from two angles — attacks that ride in through dependencies, and exploits that target the DevOps toolchain itself — so you can see where risk enters before it ships."
+    ],
+    drill:{type:'choice', label:'DRILL — SPOT THE LINK',
+      questions:[
+        { prompt:'An open-source logging library your build pulls in automatically.', options:[
+          {text:'Part of the chain', correct:true, feedback:'Right. Third-party dependencies are one of the most common entry points for supply chain risk.'},
+          {text:'Outside the chain', correct:false, feedback:'Actually it counts — anything your build pulls in, even automatically, is a link.'}
+        ]},
+        { prompt:'The CI runner that assembles your container image.', options:[
+          {text:'Part of the chain', correct:true, feedback:'Correct — build infrastructure is exactly the kind of DevOps toolchain risk SCS watches for.'},
+          {text:'Outside the chain', correct:false, feedback:'It is in scope — a compromised runner can tamper with every artifact it touches.'}
+        ]},
+        { prompt:'A teammate\u2019s laptop with commit access to the repo.', options:[
+          {text:'Part of the chain', correct:true, feedback:'Yes. People with commit access are part of the chain of trust, not just the code.'},
+          {text:'Outside the chain', correct:false, feedback:'It counts — access to the source is access to the supply chain.'}
+        ]}
+      ]
+    }
+  },
+  {
+    id:'concepts', icon:'book', xp:70,
+    title:'Learn the Terms',
+    tagline:'SBOM, provenance, attestation',
+    docUrl:'https://developer.harness.io/software-supply-chain-assurance/new-to-scs/key-concepts',
+    docTitle:'SCS Key Concepts',
+    briefing:[
+      "Three declarations show up everywhere in supply chain security: an SBOM (Software Bill of Materials) inventories every component used to build an artifact; SLSA Provenance describes how, where, and from what the artifact was actually produced.",
+      "An attestation is what ties either of those to a verifiable identity — a digital signature over the SBOM or the provenance so a downstream system can confirm it hasn't been tampered with."
+    ],
+    drill:{type:'choice', label:'DRILL — MATCH THE TERM',
+      questions:[
+        { prompt:'\u201CAn inventory of every component used to produce an artifact.\u201D', options:[
+          {text:'SBOM', correct:true, feedback:'Exactly — that\u2019s the definition of a Software Bill of Materials.'},
+          {text:'SLSA Provenance', correct:false, feedback:'Close, but provenance describes the build process, not the parts list.'},
+          {text:'Attestation', correct:false, feedback:'Not quite — an attestation is the signature, not the inventory itself.'}
+        ]},
+        { prompt:'\u201CA record of how, where, and from what an artifact was actually built.\u201D', options:[
+          {text:'SBOM', correct:false, feedback:'An SBOM lists components, but doesn\u2019t describe the build process.'},
+          {text:'SLSA Provenance', correct:true, feedback:'Right — provenance is the build\u2019s paper trail.'},
+          {text:'Attestation', correct:false, feedback:'An attestation can carry provenance, but isn\u2019t the record itself.'}
+        ]},
+        { prompt:'\u201CA digitally signed declaration a downstream system can verify for authenticity.\u201D', options:[
+          {text:'SBOM', correct:false, feedback:'An SBOM can be attested, but on its own it isn\u2019t signed.'},
+          {text:'SLSA Provenance', correct:false, feedback:'Provenance is the content — this definition describes the signature around it.'},
+          {text:'Attestation', correct:true, feedback:'Correct — signing is exactly what turns a claim into an attestation.'}
+        ]}
+      ]
+    }
+  },
+  {
+    id:'sbom-gen', icon:'box', xp:90,
+    title:'Generate an SBOM',
+    tagline:'Orchestrate and sign it',
+    docUrl:'https://developer.harness.io/docs/software-supply-chain-assurance/open-source-management/generate-sbom-for-artifacts/',
+    docTitle:'Generate and Manage SBOM',
+    briefing:[
+      "The SBOM Orchestration step scans a container image or repository, produces an SBOM in your chosen format (SPDX or CycloneDX), and can generate one for artifacts you don\u2019t already have a bill of materials for.",
+      "Run the step, then sign the result so it becomes a verifiable attestation instead of just a file sitting in a bucket."
+    ],
+    drill:{type:'terminal', label:'DRILL — RUN THE ORCHESTRATION STEP',
+      steps:[
+        { button:'Run SBOM Orchestration', cmd:'harness sbom generate --artifact myapp:1.4.2 --format cyclonedx-json',
+          out:'Scanning image layers...\nFound 214 packages, 38 direct dependencies\nWriting sbom.cyclonedx.json' },
+        { button:'Sign the SBOM', cmd:'cosign attest --predicate sbom.cyclonedx.json --type cyclonedx --key cosign.key myapp:1.4.2',
+          out:'Signing SBOM attestation...\nPushed attestation to registry as myapp:1.4.2.att\nSBOM is now verifiable downstream' }
+      ]
+    }
+  },
+  {
+    id:'policy', icon:'shield', xp:90,
+    title:'Enforce Policy',
+    tagline:'Allow-list vs. deny-list',
+    docUrl:'https://developer.harness.io/docs/software-supply-chain-assurance/sbom-policies/enforce-sbom-policies/',
+    docTitle:'Enforce SBOM Policies',
+    briefing:[
+      "During CI and CD, SCS checks each artifact\u2019s SBOM against the policies you define, so only compliant software gets built and deployed. Violations show up on the Supply Chain tab of the pipeline execution.",
+      "Try the same call the policy engine makes: given this deny-list — GPL-3.0 licenses, and log4j-core below 2.17.0 — would each dependency pass?"
+    ],
+    drill:{type:'choice', label:'DRILL — RUN THE POLICY CHECK',
+      questions:[
+        { prompt:'left-pad@1.3.0 — license: MIT', options:[
+          {text:'Allow', correct:true, feedback:'Correct — MIT isn\u2019t on the deny-list and the package has no flagged CVEs.'},
+          {text:'Deny', correct:false, feedback:'This one should pass — MIT license, nothing on the deny-list matches.'}
+        ]},
+        { prompt:'chart-utils@2.0.0 — license: GPL-3.0', options:[
+          {text:'Allow', correct:false, feedback:'This should be blocked — GPL-3.0 is explicitly on the deny-list.'},
+          {text:'Deny', correct:true, feedback:'Right — GPL-3.0 hits the license rule directly.'}
+        ]},
+        { prompt:'log4j-core@2.14.1 — license: Apache-2.0', options:[
+          {text:'Allow', correct:false, feedback:'This should be blocked — 2.14.1 is below the 2.17.0 floor in the deny-list, license aside.'},
+          {text:'Deny', correct:true, feedback:'Correct — the version rule catches it even though the license is fine.'}
+        ]}
+      ]
+    }
+  },
+  {
+    id:'slsa', icon:'layers', xp:90,
+    title:'Reach SLSA Level 3',
+    tagline:'Build integrity, staged',
+    docUrl:'https://developer.harness.io/software-supply-chain-assurance/use-scs/artifact-security/slsa/overview',
+    docTitle:'SLSA Overview',
+    briefing:[
+      "SLSA (\u201Csalsa\u201D) is a staged framework for build integrity. Harness SCS can help you reach SLSA Build Level 1, 2, or 3, each adding stronger guarantees than the last.",
+      "The Harness platform generates the provenance automatically, then signs and attests it — so the level you reach depends on how isolated and verifiable your build process is, not just whether a provenance file exists."
+    ],
+    drill:{type:'choice', label:'DRILL — GRADE THE BUILD',
+      questions:[
+        { prompt:'Provenance exists, but no one checks it before deploying.', options:[
+          {text:'Level 1', correct:true, feedback:'Right — Level 1 just requires that provenance exists.'},
+          {text:'Level 2', correct:false, feedback:'Level 2 expects a hosted build platform generating signed provenance — this is more basic than that.'},
+          {text:'Level 3', correct:false, feedback:'Level 3 requires verification and strong isolation — well beyond just having a file.'}
+        ]},
+        { prompt:'Builds run on a hosted, generated build platform that produces signed provenance.', options:[
+          {text:'Level 1', correct:false, feedback:'Level 1 doesn\u2019t require a hosted platform or signing — this is a step up from that.'},
+          {text:'Level 2', correct:true, feedback:'Correct — that\u2019s the Level 2 bar.'},
+          {text:'Level 3', correct:false, feedback:'Level 3 adds isolation guarantees and verification on top of this.'}
+        ]},
+        { prompt:'The build platform strongly isolates each build and the provenance is verified before the artifact is trusted.', options:[
+          {text:'Level 1', correct:false, feedback:'This is well beyond Level 1.'},
+          {text:'Level 2', correct:false, feedback:'Level 2 stops short of strong isolation and mandatory verification.'},
+          {text:'Level 3', correct:true, feedback:'Exactly — isolation plus verification is the Level 3 bar.'}
+        ]}
+      ]
+    }
+  },
+  {
+    id:'attest', icon:'key', xp:90,
+    title:'Sign & Verify',
+    tagline:'Keyless vs. key-based',
+    docUrl:'https://developer.harness.io/docs/software-supply-chain-assurance/open-source-management/ingest-sbom-data/',
+    docTitle:'Ingest SBOM Data',
+    briefing:[
+      "SCS doesn\u2019t just generate SBOMs — it can ingest ones you already have (JSON, SPDX, or CycloneDX from any tool) and sign them with Cosign so they\u2019re trustworthy downstream.",
+      "You get two signing methods: keyless, using short-lived identity-based keys with nothing to store, or key-based, using a private/public key pair you manage yourself."
+    ],
+    drill:{type:'choice', label:'DRILL — PICK THE SIGNING METHOD',
+      questions:[
+        { prompt:'You want to sign an ingested SBOM without managing or storing any private key long-term.', options:[
+          {text:'Keyless', correct:true, feedback:'Right — keyless signing uses short-lived, identity-based keys with nothing to store.'},
+          {text:'Key-based', correct:false, feedback:'Key-based means you\u2019re holding and protecting a long-lived private key — not what this calls for.'}
+        ]},
+        { prompt:'Your org\u2019s security policy requires a dedicated key pair kept under your own control.', options:[
+          {text:'Keyless', correct:false, feedback:'Keyless deliberately avoids a long-lived key you manage — doesn\u2019t fit this requirement.'},
+          {text:'Key-based', correct:true, feedback:'Correct — that\u2019s exactly what key-based signing is for.'}
+        ]}
+      ]
+    }
+  },
+  {
+    id:'custody', icon:'link', xp:110,
+    title:'Chain of Custody',
+    tagline:'Trace one artifact end to end',
+    docUrl:'https://developer.harness.io/software-supply-chain-assurance/use-scs/artifact-security/overview',
+    docTitle:'Artifact Overview (Chain of Custody)',
+    briefing:[
+      "The Artifacts view in SCS is a hub for every image that\u2019s passed through SBOM orchestration, policy enforcement, or SLSA provenance — logging its full journey from repo to deployment.",
+      "Trace one artifact through every checkpoint below to see what an intact chain of custody actually looks like."
+    ],
+    drill:{type:'terminal', label:'DRILL — TRACE ONE ARTIFACT',
+      steps:[
+        { button:'Check source', cmd:'scs trace myapp:1.4.2 --stage source',
+          out:'Repo: github.com/acme/myapp\nCommit: 9f3ac21, signed\nContributors: 3, all verified identities' },
+        { button:'Check build', cmd:'scs trace myapp:1.4.2 --stage build',
+          out:'Build platform: Harness CI\nSLSA provenance: Level 2, signed' },
+        { button:'Check SBOM & policy', cmd:'scs trace myapp:1.4.2 --stage sbom',
+          out:'SBOM: 214 components\nPolicy result: 0 deny-list violations, 2 allow-list exceptions reviewed' },
+        { button:'Check deployment', cmd:'scs trace myapp:1.4.2 --stage deploy',
+          out:'Deployed to: prod-us-east\nDigest matches signed image\nChain of custody: INTACT, zero gaps' }
+      ]
+    }
+  }
+];
+
+const LEVELS = [
+  {name:'RECRUIT', min:0},
+  {name:'ANALYST', min:90},
+  {name:'ENGINEER', min:250},
+  {name:'GUARDIAN', min:420},
+  {name:'ARCHITECT', min:590}
+];
+
+/* ---------------------------------------------------------------------
+   STATE
+--------------------------------------------------------------------- */
+const STORE_KEY = 'scs-quest-progress';
+let state = { xp:0, completed:{}, answered:{} };
+let selectedId = null;
+
+async function loadState(){
+  try{
+    const res = await window.storage.get(STORE_KEY, false);
+    if(res && res.value){
+      const parsed = JSON.parse(res.value);
+      state = Object.assign({xp:0, completed:{}, answered:{}}, parsed);
+    }
+  }catch(e){ /* no saved progress yet */ }
+}
+async function saveState(){
+  try{ await window.storage.set(STORE_KEY, JSON.stringify(state), false); }
+  catch(e){ console.error('save failed', e); }
+}
+
+function levelFor(xp){
+  let cur = LEVELS[0];
+  for(const l of LEVELS){ if(xp >= l.min) cur = l; }
+  return cur;
+}
+function nextLevelFor(xp){
+  for(const l of LEVELS){ if(xp < l.min) return l; }
+  return null;
+}
+
+function isUnlocked(index){
+  if(index === 0) return true;
+  return !!state.completed[TOPICS[index-1].id];
+}
+function statusFor(index){
+  const t = TOPICS[index];
+  if(state.completed[t.id]) return 'mastered';
+  if(isUnlocked(index)) return 'available';
+  return 'locked';
+}
+
+/* ---------------------------------------------------------------------
+   RENDER — HUD
+--------------------------------------------------------------------- */
+function renderHUD(){
+  const lvl = levelFor(state.xp);
+  const next = nextLevelFor(state.xp);
+  document.getElementById('rankName').textContent = lvl.name;
+  document.getElementById('scoreLabel').textContent = state.xp + ' pts';
+  if(next){
+    const span = next.min - lvl.min;
+    const into = state.xp - lvl.min;
+    const pct = Math.min(100, Math.round((into/span)*100));
+    document.getElementById('xpFill').style.width = pct + '%';
+    document.getElementById('xpLabel').textContent = state.xp + ' / ' + next.min + ' XP to ' + next.name;
+  } else {
+    document.getElementById('xpFill').style.width = '100%';
+    document.getElementById('xpLabel').textContent = state.xp + ' XP — max clearance reached';
+  }
+}
+
+/* ---------------------------------------------------------------------
+   RENDER — Chain rail
+--------------------------------------------------------------------- */
+function renderRail(){
+  const rail = document.getElementById('chainRail');
+  rail.innerHTML = '<div class="rail-line"></div>';
+  TOPICS.forEach((t, i) => {
+    const status = statusFor(i);
+    const node = document.createElement('div');
+    node.className = 'node ' + status + (selectedId === t.id ? ' selected' : '');
+    node.setAttribute('role', 'button');
+    node.setAttribute('tabindex', '0');
+    node.innerHTML =
+      '<div class="node-badge">' + (status === 'locked' ? lockIcon() : ICONS[t.icon]) + '</div>' +
+      '<div class="node-index">CHECKPOINT ' + (i+1) + '</div>' +
+      '<div class="node-title">' + t.title + '</div>' +
+      '<div class="node-xp">' + (status === 'mastered' ? '\u2713 MASTERED' : '+' + t.xp + ' XP') + '</div>' +
+      '<a class="node-doc" href="' + t.docUrl + '" target="_blank" rel="noopener" title="Open the doc for this checkpoint">doc \u2197</a>';
+    node.addEventListener('click', (e) => {
+      if(e.target.closest('.node-doc')) return;
+      onNodeClick(i);
+    });
+    node.addEventListener('keydown', (e) => {
+      if((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.node-doc')){
+        e.preventDefault();
+        onNodeClick(i);
+      }
+    });
+    rail.appendChild(node);
+  });
+}
+function lockIcon(){
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>';
+}
+
+function onNodeClick(index){
+  const status = statusFor(index);
+  if(status === 'locked'){
+    showToast('Clear checkpoint ' + index + ' first to unlock this one.');
+    return;
+  }
+  selectedId = TOPICS[index].id;
+  renderRail();
+  renderDetail();
+  document.getElementById('detail').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+/* ---------------------------------------------------------------------
+   RENDER — Detail panel + drills
+--------------------------------------------------------------------- */
+function renderDetail(){
+  const el = document.getElementById('detail');
+  const allMastered = TOPICS.every(t => state.completed[t.id]);
+
+  if(!selectedId){
+    if(allMastered){
+      el.className = 'detail empty anim';
+      el.innerHTML =
+        '<div class="empty-icon">\u25C8</div>' +
+        '<div class="empty-title">Chain fully verified</div>' +
+        '<div class="empty-sub">All seven checkpoints cleared \u2014 ' + state.xp + ' XP, ' + levelFor(state.xp).name + ' clearance.</div>';
+    } else {
+      el.className = 'detail empty anim';
+      el.innerHTML =
+        '<div class="empty-icon">\u25C8</div>' +
+        '<div class="empty-title">Select a checkpoint above to begin</div>';
+    }
+    return;
+  }
+  const t = TOPICS.find(x => x.id === selectedId);
+  const idx = TOPICS.indexOf(t);
+  const mastered = !!state.completed[t.id];
+
+  el.className = 'detail anim';
+  el.innerHTML =
+    '<div class="detail-head">' +
+      '<div class="detail-eyebrow">CHECKPOINT ' + (idx+1) + ' / ' + TOPICS.length + '</div>' +
+      '<div class="detail-title">' + t.title + '</div>' +
+      '<div class="detail-brief">' + t.briefing.map(p => '<p>' + p + '</p>').join('') + '</div>' +
+      '<a class="doc-link" href="' + t.docUrl + '" target="_blank" rel="noopener">Open doc: ' + t.docTitle + ' <span class="arrow">\u2197</span></a>' +
+    '</div>' +
+    '<div class="detail-body" id="drillArea"></div>';
+
+  renderDrill(t, mastered);
+}
+
+function renderDrill(t, mastered){
+  const area = document.getElementById('drillArea');
+  if(t.drill.type === 'choice'){
+    renderChoiceDrill(t, area, mastered);
+  } else {
+    renderTerminalDrill(t, area, mastered);
+  }
+}
+
+/* -- Choice drill -- */
+function renderChoiceDrill(t, area, mastered){
+  if(!state.answered[t.id]) state.answered[t.id] = {};
+  const answered = state.answered[t.id];
+
+  const html = ['<div class="drill-label">' + t.drill.label + '</div>'];
+  t.drill.questions.forEach((q, qi) => {
+    const picked = answered[qi];
+    html.push('<div class="q-card" data-q="' + qi + '">' +
+      '<div class="q-meta">SCENARIO ' + (qi+1) + ' / ' + t.drill.questions.length + '</div>' +
+      '<div class="q-prompt">' + q.prompt + '</div>' +
+      '<div class="q-options">' +
+        q.options.map((o, oi) => {
+          let cls = 'opt-btn';
+          if(picked !== undefined){
+            if(oi === picked) cls += o.correct ? ' correct' : ' wrong';
+          }
+          return '<button class="' + cls + '" data-q="' + qi + '" data-o="' + oi + '"' + (picked !== undefined ? ' disabled' : '') + '>' + o.text + '</button>';
+        }).join('') +
+      '</div>' +
+      (picked !== undefined ? '<div class="q-feedback ' + (q.options[picked].correct ? 'good' : 'bad') + '">' + q.options[picked].feedback + '</div>' : '') +
+    '</div>');
+  });
+  area.innerHTML = html.join('');
+
+  area.querySelectorAll('.opt-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const qi = parseInt(btn.dataset.q, 10);
+      const oi = parseInt(btn.dataset.o, 10);
+      if(answered[qi] !== undefined) return;
+      answered[qi] = oi;
+      renderDrill(t, mastered);
+      appendMasterControl(t, mastered);
+    });
+  });
+
+  appendMasterControl(t, mastered);
+}
+
+function allChoicesCorrect(t){
+  const answered = state.answered[t.id] || {};
+  return t.drill.questions.every((q, qi) => answered[qi] !== undefined && q.options[answered[qi]].correct);
+}
+
+function appendMasterControl(t, mastered){
+  const area = document.getElementById('drillArea');
+  const existing = area.querySelector('.master-btn, .mastered-tag');
+  if(existing) existing.remove();
+
+  const idx = TOPICS.indexOf(t);
+  const next = TOPICS[idx+1];
+
+  if(mastered){
+    const wrap = document.createElement('div');
+    wrap.className = 'mastered-tag';
+    if(next){
+      wrap.innerHTML = '<span class="check">\u2713 Checkpoint cleared</span>';
+      const nextBtn = document.createElement('button');
+      nextBtn.className = 'next-btn';
+      nextBtn.textContent = 'Continue to ' + next.title + ' \u2192';
+      nextBtn.addEventListener('click', () => { selectedId = next.id; renderRail(); renderDetail(); document.getElementById('detail').scrollIntoView({behavior:'smooth', block:'nearest'}); });
+      wrap.appendChild(nextBtn);
+    } else {
+      wrap.innerHTML = '<span class="check">\u2713 Checkpoint cleared \u2014 chain complete</span>';
+      const doneBtn = document.createElement('button');
+      doneBtn.className = 'next-btn';
+      doneBtn.textContent = 'View mission summary';
+      doneBtn.addEventListener('click', () => { selectedId = null; renderRail(); renderDetail(); document.getElementById('detail').scrollIntoView({behavior:'smooth', block:'nearest'}); });
+      wrap.appendChild(doneBtn);
+    }
+    area.appendChild(wrap);
+    return;
+  }
+
+  let ready = false;
+  if(t.drill.type === 'choice') ready = allChoicesCorrect(t);
+  else ready = !!(state.termProgress && state.termProgress[t.id] === t.drill.steps.length);
+
+  const btn = document.createElement('button');
+  btn.className = 'master-btn';
+  btn.textContent = ready ? 'Mark checkpoint cleared \u2014 +' + t.xp + ' XP' : 'Complete the drill above first';
+  btn.disabled = !ready;
+  btn.addEventListener('click', () => completeTopic(t));
+  area.appendChild(btn);
+}
+
+/* -- Terminal drill -- */
+function renderTerminalDrill(t, area, mastered){
+  if(!state.termProgress) state.termProgress = {};
+  const done = state.termProgress[t.id] || 0;
+
+  const lines = [];
+  for(let i=0; i<done; i++){
+    const s = t.drill.steps[i];
+    lines.push('<div class="term-line term-cmd">$ ' + s.cmd + '</div>');
+    lines.push('<div class="term-line term-out">' + s.out + '</div>');
+  }
+
+  const html = ['<div class="drill-label">' + t.drill.label + '</div>' +
+    '<div class="term"><div class="term-bar"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span> scs-shell</div>' +
+    '<div class="term-body" id="termBody">' + lines.join('') + '</div></div>'];
+  area.innerHTML = html.join('');
+
+  const termBody = document.getElementById('termBody');
+  if(done < t.drill.steps.length){
+    const step = t.drill.steps[done];
+    const btn = document.createElement('button');
+    btn.className = 'term-step-btn';
+    btn.textContent = '\u25B8 ' + step.button;
+    btn.addEventListener('click', () => {
+      state.termProgress[t.id] = done + 1;
+      renderDrill(t, mastered);
+    });
+    termBody.after(btn);
+  }
+
+  appendMasterControl(t, mastered);
+}
+
+/* ---------------------------------------------------------------------
+   Completion
+--------------------------------------------------------------------- */
+async function completeTopic(t){
+  if(state.completed[t.id]) return;
+  const prevLevel = levelFor(state.xp).name;
+  state.completed[t.id] = true;
+  state.xp += t.xp;
+  await saveState();
+  renderHUD();
+  renderRail();
+  renderDetail();
+  const newLevel = levelFor(state.xp).name;
+  if(newLevel !== prevLevel){
+    showToast('\u25B2 LEVEL UP \u2014 ' + newLevel + ' \u00b7 +' + t.xp + ' XP', true);
+  } else {
+    showToast('\u2713 Checkpoint cleared \u2014 +' + t.xp + ' XP', false);
+  }
+}
+
+let toastTimer = null;
+function showToast(msg, isLevelUp){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.toggle('level-up', !!isLevelUp);
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), isLevelUp ? 3400 : 2600);
+}
+
+/* ---------------------------------------------------------------------
+   Reset
+--------------------------------------------------------------------- */
+document.getElementById('resetBtn').addEventListener('click', async () => {
+  state = { xp:0, completed:{}, answered:{}, termProgress:{} };
+  selectedId = null;
+  await saveState();
+  renderHUD(); renderRail(); renderDetail();
+  showToast('Run reset');
+});
+
+/* ---------------------------------------------------------------------
+   Init
+--------------------------------------------------------------------- */
+(async function init(){
+  await loadState();
+  if(!state.termProgress) state.termProgress = {};
+  renderHUD();
+  renderRail();
+  renderDetail();
+})();
+</script>
+</body>
+</html>
