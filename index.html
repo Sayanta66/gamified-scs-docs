@@ -177,7 +177,15 @@ body{
 .doc-link .arrow{transition:transform .15s;}
 .doc-link:hover .arrow{transform:translate(2px,-2px);}
 .detail-body{padding:20px 26px 26px;}
-.drill-label{font-family:var(--mono);font-size:11px;color:var(--amber);letter-spacing:0.05em;margin-bottom:12px;}
+.drill-label-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;}
+.drill-label{font-family:var(--mono);font-size:11px;color:var(--amber);letter-spacing:0.05em;margin-bottom:0;}
+.retry-btn{
+  background:none;border:1px solid var(--line);color:var(--text-dim);font-family:var(--mono);
+  font-size:11px;padding:6px 11px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;
+}
+.retry-btn:hover{border-color:var(--danger);color:var(--danger);}
+.quiz-status{font-family:var(--mono);font-size:11.5px;color:var(--text-faint);margin-top:14px;}
+.quiz-status.fail{color:var(--danger);}
 
 /* choice exercise */
 .q-card{border:1px solid var(--line-soft);border-radius:10px;padding:16px 18px;margin-bottom:12px;background:var(--panel-2);}
@@ -671,8 +679,14 @@ function renderDrill(t, mastered){
 function renderChoiceDrill(t, area, mastered){
   if(!state.answered[t.id]) state.answered[t.id] = {};
   const answered = state.answered[t.id];
+  const answeredCount = Object.keys(answered).length;
+  const totalQ = t.drill.questions.length;
+  const wrongCount = t.drill.questions.filter((q, qi) => answered[qi] !== undefined && !q.options[answered[qi]].correct).length;
+  const allAnswered = answeredCount === totalQ;
 
-  const html = ['<div class="drill-label">' + t.drill.label + '</div>'];
+  const html = ['<div class="drill-label-row"><div class="drill-label">' + t.drill.label + '</div>' +
+    (!mastered && answeredCount > 0 ? '<button class="retry-btn" id="retryBtn">\u21BA Retry checkpoint</button>' : '') +
+    '</div>'];
   t.drill.questions.forEach((q, qi) => {
     const picked = answered[qi];
     html.push('<div class="q-card" data-q="' + qi + '">' +
@@ -690,6 +704,11 @@ function renderChoiceDrill(t, area, mastered){
       (picked !== undefined ? '<div class="q-feedback ' + (q.options[picked].correct ? 'good' : 'bad') + '">' + q.options[picked].feedback + '</div>' : '') +
     '</div>');
   });
+
+  if(!mastered && allAnswered && wrongCount > 0){
+    html.push('<div class="quiz-status fail">' + wrongCount + ' of ' + totalQ + ' missed \u2014 use \u201CRetry checkpoint\u201D above to reset just this quiz and try again.</div>');
+  }
+
   area.innerHTML = html.join('');
 
   area.querySelectorAll('.opt-btn').forEach(btn => {
@@ -698,10 +717,13 @@ function renderChoiceDrill(t, area, mastered){
       const oi = parseInt(btn.dataset.o, 10);
       if(answered[qi] !== undefined) return;
       answered[qi] = oi;
+      saveState();
       renderDrill(t, mastered);
-      appendMasterControl(t, mastered);
     });
   });
+
+  const retryBtn = document.getElementById('retryBtn');
+  if(retryBtn) retryBtn.addEventListener('click', () => retryCheckpoint(t));
 
   appendMasterControl(t, mastered);
 }
@@ -742,12 +764,22 @@ function appendMasterControl(t, mastered){
   }
 
   let ready = false;
-  if(t.drill.type === 'choice') ready = allChoicesCorrect(t);
-  else ready = !!(state.termProgress && state.termProgress[t.id] === t.drill.steps.length);
+  let label;
+  if(t.drill.type === 'choice'){
+    ready = allChoicesCorrect(t);
+    const answered = state.answered[t.id] || {};
+    const allAnswered = Object.keys(answered).length === t.drill.questions.length;
+    label = ready
+      ? 'Mark checkpoint cleared \u2014 +' + t.xp + ' XP'
+      : (allAnswered ? 'Retry the checkpoint above to clear it' : 'Answer every scenario above first');
+  } else {
+    ready = !!(state.termProgress && state.termProgress[t.id] === t.drill.steps.length);
+    label = ready ? 'Mark checkpoint cleared \u2014 +' + t.xp + ' XP' : 'Run every command above first';
+  }
 
   const btn = document.createElement('button');
   btn.className = 'master-btn';
-  btn.textContent = ready ? 'Mark checkpoint cleared \u2014 +' + t.xp + ' XP' : 'Complete the drill above first';
+  btn.textContent = label;
   btn.disabled = !ready;
   btn.addEventListener('click', () => completeTopic(t));
   area.appendChild(btn);
@@ -765,7 +797,9 @@ function renderTerminalDrill(t, area, mastered){
     lines.push('<div class="term-line term-out">' + s.out + '</div>');
   }
 
-  const html = ['<div class="drill-label">' + t.drill.label + '</div>' +
+  const html = ['<div class="drill-label-row"><div class="drill-label">' + t.drill.label + '</div>' +
+    (!mastered && done > 0 ? '<button class="retry-btn" id="retryBtn">\u21BA Retry checkpoint</button>' : '') +
+    '</div>' +
     '<div class="term"><div class="term-bar"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span> scs-shell</div>' +
     '<div class="term-body" id="termBody">' + lines.join('') + '</div></div>'];
   area.innerHTML = html.join('');
@@ -778,12 +812,25 @@ function renderTerminalDrill(t, area, mastered){
     btn.textContent = '\u25B8 ' + step.button;
     btn.addEventListener('click', () => {
       state.termProgress[t.id] = done + 1;
+      saveState();
       renderDrill(t, mastered);
     });
     termBody.after(btn);
   }
 
+  const retryBtn = document.getElementById('retryBtn');
+  if(retryBtn) retryBtn.addEventListener('click', () => retryCheckpoint(t));
+
   appendMasterControl(t, mastered);
+}
+
+/* -- Retry a single checkpoint's drill without touching the rest of the run -- */
+async function retryCheckpoint(t){
+  if(state.answered) state.answered[t.id] = {};
+  if(state.termProgress) state.termProgress[t.id] = 0;
+  await saveState();
+  renderDrill(t, false);
+  showToast('Checkpoint reset \u2014 give it another go', false);
 }
 
 /* ---------------------------------------------------------------------
